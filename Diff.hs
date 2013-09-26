@@ -73,50 +73,56 @@ toDiffOp :: [MultiDiff a] -> [DiffOperation a]
 toDiffOp = toLineRange 1 1 
     where
        toLineRange _ _ []=[]
-       toLineRange ll rl (MultiBoth ls rs:tail)= Unchanged (LineRange (LineNoPair ll (llf-1)) ls) (LineRange (LineNoPair rl (rlf-1)) rs) : toLineRange (ll+llf) (rl+rlf) tail
+       toLineRange ll rl (MultiBoth ls rs:tail)= Unchanged ll (llf-1) ls rl (rlf-1) rs : toLineRange (ll+llf) (rl+rlf) tail
            where llf = ll + length ls
                  rlf = rl + length rs
        toLineRange ll rl (MultiRight lsS: MultiLeft lsF:rs)= toChange ll rl lsF lsS rs
        toLineRange ll rl (MultiLeft lsF: MultiRight lsS:rs)= toChange ll rl lsF lsS rs
-       toLineRange ll rl (MultiRight lsS:rs)= Addition (LineRange (LineNoPair rl (rls-1)) lsS) (ll-1) : toLineRange ll rls rs
+       toLineRange ll rl (MultiRight lsS:rs)= Addition rl (rls-1) lsS (ll-1) : toLineRange ll rls rs
            where rls = rl + length lsS
-       toLineRange ll rl (MultiLeft lsF:rs) = Deletion (LineRange (LineNoPair ll (llf-1)) lsF) (rl-1) : toLineRange llf rl rs
+       toLineRange ll rl (MultiLeft lsF:rs) = Deletion ll (llf-1) lsF (rl-1) : toLineRange llf rl rs
            where llf = ll + length lsF
-       toChange ll rl lsF lsS rs= Change (LineRange (LineNoPair ll (llf-1)) lsF) (LineRange (LineNoPair rl (rls-1)) lsS)
+       toChange ll rl lsF lsS rs= Change ll (llf-1) lsF rl (rls-1) lsS
                : toLineRange llf rls rs
            where rls = rl + length lsS
                  llf = ll + length lsF
 
+-- coalesce x@(a@(Deletion ll lr) : b@(Unchanged ll lr) : c@(Deletion ll lr) : rest) =
+
 prettyLines start lins = concatMap (\x -> [start,' ']++x++"\n") lins
 
 type LineNo = Int
+
+
 data LineNoPair = LineNoPair Int Int
 instance Show LineNoPair where
   show (LineNoPair start end) = if start == end then (show start) else concat [show start,"," ,show end]
-data LineRange a = LineRange { lrNumbers :: LineNoPair, lrContents :: [a] } deriving (Show)
-data DiffOperation a = Deletion (LineRange a) LineNo 
-  | Addition (LineRange a) LineNo 
-  | Change (LineRange a) (LineRange a)
-  | Unchanged (LineRange a) (LineRange a)
+
+-- data LineRange a = LineRange { lrNumbers :: LineNoPair, lrContents :: [a] } deriving (Show)
+
+data DiffOperation a = Deletion LineNo LineNo [a] LineNo 
+  | Addition LineNo LineNo [a] LineNo 
+  | Change LineNo LineNo [a] LineNo LineNo [a]
+  | Unchanged LineNo LineNo [a] LineNo LineNo [a]
 
 instance Show (DiffOperation String) where
-  show (Deletion inLeft lineNoRight) =
-    concat [show (lrNumbers inLeft), "d", show lineNoRight,"\n", prettyLines '<' (lrContents inLeft)]
-  show (Addition inRight lineNoLeft) =
-    concat[ show lineNoLeft, "a" , show (lrNumbers inRight), "\n", prettyLines '>' (lrContents inRight)]
-  show (Change inLeft inRight) =
-    concat [ show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n",
-       prettyLines '<' (lrContents inLeft), "---\n", prettyLines '>' (lrContents inRight) ]
-  show (Unchanged inLeft inRight) = ""
+  show (Deletion ls le lc rs) =
+    concat [show (LineNoPair ls le), "d", show rs,"\n", prettyLines '<' lc]
+  show (Addition rs re rc ls) =
+    concat[ show ls, "a" , show (LineNoPair rs re), "\n", prettyLines '>' rc]
+  show (Change ls le lc rs re rc) =
+    concat [ show (LineNoPair ls le), "c" , show (LineNoPair rs re), "\n",
+       prettyLines '<' lc, "---\n", prettyLines '>' rc ]
+  show (Unchanged ls le lc rs re rc) = ""
 --      concat [ show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n",
 --         prettyLines '<' (lrContents inLeft), "---\n", prettyLines '>' (lrContents inRight) ]
 
 instance Show (DiffOperation Char) where
-  show (Deletion inLeft lineNoRight) =
-    concat [ {- show (lrNumbers inLeft), "d", show lineNoRight,"\n", -} peach, setExtendedBackgroundColor 15, (lrContents inLeft), treset]
-  show (Addition inRight lineNoLeft) =
-    concat[ {- show lineNoLeft, "a" , show (lrNumbers inRight), "\n", -} azure, setExtendedBackgroundColor 15, (lrContents inRight), treset]
-  show (Change inLeft inRight) =
+  show (Deletion ls le lc rs) =
+    concat [ {- show (lrNumbers inLeft), "d", show lineNoRight,"\n", -} peach, setExtendedBackgroundColor 15, lc, treset]
+  show (Addition rs re rc ls) =
+    concat[ {- show lineNoLeft, "a" , show (lrNumbers inRight), "\n", -} azure, setExtendedBackgroundColor 15, rc, treset]
+  show (Change ls le lc rs re rc) =
     concat [ {- show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n", -}
-       {- prettyLines '<' -} setExtendedBackgroundColor 15, peach, (lrContents inLeft), {-prettyLines '>' -} azure, (lrContents inRight), treset ]
-  show (Unchanged inLeft inRight) = concat [ lrContents inLeft]
+       {- prettyLines '<' -} setExtendedBackgroundColor 15, peach, lc, {-prettyLines '>' -} azure, rc, treset ]
+  show (Unchanged ls le lc rs re rc) = concat [ lc ]
