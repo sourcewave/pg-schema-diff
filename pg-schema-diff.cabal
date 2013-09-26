@@ -1,0 +1,11 @@
+Name:           pg-schema-diff
+Version:        0.1
+Cabal-Version:  >= 1.2
+License:        PublicDomain
+Author:         Sherlock Holmes
+Synopsis:       Compare two sets of Postgres schemas and show the differences
+Build-Type:     Simple
+
+Executable pg_schema_diff
+  Build-Depends:  template-haskell, HDBC-postgresql, HDBC, base, array
+  Main-Is:        PgSchemaDiff.hs
