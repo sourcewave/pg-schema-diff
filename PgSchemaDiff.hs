@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, QuasiQuotes #-}
 
 import Sqlcmds
 import Database.HDBC
@@ -8,6 +8,7 @@ import Acl
 import Proc
 import View
 import Util
+import Str
 
 
 
@@ -28,16 +29,34 @@ initialize args = do
     let searchPath = "set search_path="++ (intercalate "," ra)
     run conn1 searchPath []
     run conn2 searchPath []
-    return (get1, get2, ra)
+    return (get1, get2)
+
+{- The command line arguments are:
+   1) a comma separated list of which things to diff 
+   2) the first connection string
+   3) the second connection string
+   4) the list of schemas to compare
+-}
 
 main = do
   args <- getArgs
-  (get1, get2, schemas) <- initialize args
+  let which = head args
+      ag = tail args
 
-  -- compareProcs (get1, get2) >>= mapM print 
-  
-  compareViews (get1, get2, schemas) >>= mapM print
-  
+  case which of
+     "procs" -> initialize ag >>= compareProcs >>= mapM print 
+     "views" -> initialize ag >>= compareViews >>= mapM print
+     otherwise -> mapM putStr [ [str|
+The valid comparisons are: procs, views
+
+The arguments are:
+  comparisonType orangeConnectionString blueConnectionString schema1 schema2
+
+The connectionStrings are of the form:
+  "host={hostname} port={portNumber} user={userid} dbname={dbname}"
+|] ]
+
+
   -- disconnect conn1
   -- disconnect conn2
 

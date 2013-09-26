@@ -85,7 +85,7 @@ instance Comparable DbView where
     if (acl a == acl b && compareIgnoringWhiteSpace (definition a) (definition b)) then Equal a
     else Unequal a b
 
-compareViews (get1, get2, schemas) = do
+compareViews (get1, get2) = do
     aa <- get1 viewList
     -- aac <- get1 viewColumns
     -- aat <- get1 viewTriggers
