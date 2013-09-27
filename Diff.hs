@@ -14,6 +14,8 @@ import Prelude hiding (pi)
 import Data.Array
 import Data.String
 import Console
+import Data.List (isSuffixOf)
+import Debug.Trace
 
 data DI = F | S | B deriving (Show, Eq)
 
@@ -67,62 +69,91 @@ groupDiffs ds = doit ds
           getBoths bs = ([],[],bs)
 
 diff :: Eq a => [a] -> [a] -> [DiffOperation a]
-diff x y = toDiffOp $ groupDiffs $ getDiffBy (==) x y
+diff x y = coalesce $ toDiffOp $ groupDiffs $ getDiffBy (==) x y
 
-toDiffOp :: [MultiDiff a] -> [DiffOperation a]
-toDiffOp = toLineRange 1 1 
+toDiffOp :: Eq a => [MultiDiff a] -> [DiffOperation a]
+toDiffOp x = toLineRange 1 1 x
     where
        toLineRange _ _ []=[]
-       toLineRange ll rl (MultiBoth ls rs:tail)= Unchanged ll (llf-1) ls rl (rlf-1) rs : toLineRange (ll+llf) (rl+rlf) tail
-           where llf = ll + length ls
-                 rlf = rl + length rs
-       toLineRange ll rl (MultiRight lsS: MultiLeft lsF:rs)= toChange ll rl lsF lsS rs
-       toLineRange ll rl (MultiLeft lsF: MultiRight lsS:rs)= toChange ll rl lsF lsS rs
-       toLineRange ll rl (MultiRight lsS:rs)= Addition rl (rls-1) lsS (ll-1) : toLineRange ll rls rs
-           where rls = rl + length lsS
-       toLineRange ll rl (MultiLeft lsF:rs) = Deletion ll (llf-1) lsF (rl-1) : toLineRange llf rl rs
-           where llf = ll + length lsF
-       toChange ll rl lsF lsS rs= Change ll (llf-1) lsF rl (rls-1) lsS
-               : toLineRange llf rls rs
-           where rls = rl + length lsS
-                 llf = ll + length lsF
+       toLineRange ls rs (MultiBoth lc rc:tail)= Unchanged ls lc rs rc : toLineRange (ls+length lc) (rs+length rc) tail
+       toLineRange ls rs (MultiRight rc: MultiLeft lc:rest)= toChange ls rs lc rc rest
+       toLineRange ls rs (MultiLeft lc: MultiRight rc:rest)= toChange ls rs lc rc rest
+       toLineRange ls rs (MultiRight rc:rest)= Addition rs rc ls : toLineRange ls (rs + length rc) rest
+       toLineRange ls rs (MultiLeft lc:rest) = Deletion ls lc rs : toLineRange (ls + length lc) rs rest
+       toChange ls rs lc rc rest = Change ls lc rs rc : toLineRange (ls+length lc) (rs+length rc) rest
 
--- coalesce x@(a@(Deletion ll lr) : b@(Unchanged ll lr) : c@(Deletion ll lr) : rest) =
+coalesce x = reverse . snd $ coalzip (x,[])
+
+backspace (a, (b:c)) = (b : a, c)
+backspace (a, []) = (a,[])
+
+xchng a@(Change ls lc rs rc) =
+  let rl = length rc
+      ll = length lc
+  in if (isSuffixOf rc lc) then [Deletion ls (take (length lc - rl) lc) rs 
+            , Unchanged (ls+ll-rl) (drop (ll - rl) lc) rs rc]
+     else [a]
+
+coalzip :: Eq a => ([DiffOperation a],[DiffOperation a])-> ([DiffOperation a],[DiffOperation a])
+-- if I stick a "crunch" in on this Change creation, it fails to do the right thing?
+coalzip (a@(Deletion ls1 lc1 rs1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Deletion ls3 lc3 rs3) : rest, z) =
+  let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs2 rc2 
+  in if (length lc2 < 3 ) then coalzip $ backspace ( ch ++ rest, z)
+  else coalzip (b : c : rest, a : z)
+coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Deletion ls3 lc3 rs3) : rest, z) =
+  let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs1 (rc1++rc2) 
+  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+coalzip (a@(Deletion ls1 lc1 rs1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
+  let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs2 (rc2++rc3) 
+  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
+  let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs1 (rc1++rc2++rc3) 
+  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+coalzip (a@(Addition rs1 rc1 ls1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Addition rs3 rc3 ls3) : rest, z) =
+  let ch = xchng $ Change ls2 lc2 rs1 (rc1++rc2++rc3) 
+  in if (length rc2 < 3 ) then coalzip $ backspace ( ch ++ rest, z) else  coalzip (b : c : rest, a : z)
+coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Addition rs3 rc3 ls3) : rest, z) =
+  let ch = xchng $ Change ls1 (lc1++lc2) rs1 (rc1++rc2++rc3)
+  in if (length rc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+coalzip (a@(Addition rs1 rc1 ls1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
+  let ch = xchng $ Change ls2 (lc2++lc3) rs1 (rc1++rc2++rc3)
+  in if (length rc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+coalzip (a@(Unchanged ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : rest, z) =
+  coalzip $ backspace $ backspace ( (Unchanged ls1 (lc1++lc2) rs1 (rc1++rc2)) : rest, z)
+coalzip (a:b,z) = coalzip (b, a : z)
+coalzip ([],z) = ([],z)
 
 prettyLines start lins = concatMap (\x -> [start,' ']++x++"\n") lins
 
 type LineNo = Int
 
 
-data LineNoPair = LineNoPair Int Int
-instance Show LineNoPair where
-  show (LineNoPair start end) = if start == end then (show start) else concat [show start,"," ,show end]
+data LineRange = LineRange Int Int
+instance Show LineRange where
+  show (LineRange start len) = if len == 1 then (show start) else concat [show start,"," ,show (start + len - 1)]
 
 -- data LineRange a = LineRange { lrNumbers :: LineNoPair, lrContents :: [a] } deriving (Show)
 
-data DiffOperation a = Deletion LineNo LineNo [a] LineNo 
-  | Addition LineNo LineNo [a] LineNo 
-  | Change LineNo LineNo [a] LineNo LineNo [a]
-  | Unchanged LineNo LineNo [a] LineNo LineNo [a]
+data DiffOperation a = Deletion LineNo [a] LineNo 
+  | Addition LineNo [a] LineNo 
+  | Change LineNo [a] LineNo [a]
+  | Unchanged LineNo [a] LineNo [a]
 
 instance Show (DiffOperation String) where
-  show (Deletion ls le lc rs) =
-    concat [show (LineNoPair ls le), "d", show rs,"\n", prettyLines '<' lc]
-  show (Addition rs re rc ls) =
-    concat[ show ls, "a" , show (LineNoPair rs re), "\n", prettyLines '>' rc]
-  show (Change ls le lc rs re rc) =
-    concat [ show (LineNoPair ls le), "c" , show (LineNoPair rs re), "\n",
+  show (Deletion ls lc rs) =
+    concat [show (LineRange ls (length lc)), "d", show rs,"\n", prettyLines '<' lc]
+  show (Addition rs rc ls) =
+    concat[ show ls, "a" , show (LineRange rs (length rc)), "\n", prettyLines '>' rc]
+  show (Change ls lc rs rc) =
+    concat [ show (LineRange ls (length lc) ), "c" , show (LineRange rs (length rc)), "\n",
        prettyLines '<' lc, "---\n", prettyLines '>' rc ]
-  show (Unchanged ls le lc rs re rc) = ""
+  show (Unchanged ls lc rs rc) = ""
 --      concat [ show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n",
 --         prettyLines '<' (lrContents inLeft), "---\n", prettyLines '>' (lrContents inRight) ]
 
 instance Show (DiffOperation Char) where
-  show (Deletion ls le lc rs) =
-    concat [ {- show (lrNumbers inLeft), "d", show lineNoRight,"\n", -} peach, setExtendedBackgroundColor 15, lc, treset]
-  show (Addition rs re rc ls) =
-    concat[ {- show lineNoLeft, "a" , show (lrNumbers inRight), "\n", -} azure, setExtendedBackgroundColor 15, rc, treset]
-  show (Change ls le lc rs re rc) =
-    concat [ {- show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n", -}
-       {- prettyLines '<' -} setExtendedBackgroundColor 15, peach, lc, {-prettyLines '>' -} azure, rc, treset ]
-  show (Unchanged ls le lc rs re rc) = concat [ lc ]
+  show (Deletion ls lc rs) = concat[ peach, setExtendedBackgroundColor 15, lc, treset]
+  show (Addition rs rc ls) = concat[ azure, setExtendedBackgroundColor 15, rc, treset]
+  show (Change ls lc rs rc) =
+    concat [ setExtendedBackgroundColor 15, setColor dullBlack, "{", peach, lc, azure, rc, setColor dullBlack, "}", treset ]
+  show (Unchanged ls lc rs rc) = concat [ lc ]
