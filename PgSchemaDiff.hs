@@ -7,6 +7,7 @@ import System.Environment
 import Acl
 import Proc
 import View
+import Trigger
 import Util
 import Str
 
@@ -46,6 +47,7 @@ main = do
   case which of
      "procs" -> initialize ag >>= compareProcs >>= mapM print 
      "views" -> initialize ag >>= compareViews >>= mapM print
+     "triggers" -> initialize ag >>= compareTriggers >>= mapM print
      otherwise -> mapM putStr [ [str|
 The valid comparisons are: procs, views
 

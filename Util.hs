@@ -18,6 +18,12 @@ gs :: SqlValue -> String
 gs y@(SqlByteString x) = fromSql y
 gs SqlNull = ""
 
+gb :: SqlValue -> Bool
+gb y@(SqlBool x) = fromSql y
+
+gi :: SqlValue -> Int
+gi y@(SqlInt32 x) = fromSql y
+
 data Comparison a = Equal a | LeftOnly a | RightOnly a | Unequal a a
 
 sok = concat [ setColor dullGreen,  [charCheck] ,  " "]

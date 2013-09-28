@@ -3,15 +3,16 @@
 module Trigger where
 
 import Str(str)
-import Acl
 import Util
 import Console
 import Diff
+import Data.Bits
+import Debug.Trace
 
-triggers = [str|
+triggerList = [str|
 SELECT n.nspname as "Schema", c.relname AS "Relation", t.tgname AS "Name", tgtype AS "Type", t.tgenabled = 'O' AS enabled,
-  pg_get_triggerdef(t.oid) as definition,
-  concat (np.nspname, '.', p.proname) AS procedure
+  concat (np.nspname, '.', p.proname) AS procedure,
+  pg_get_triggerdef(t.oid) as definition
 FROM pg_catalog.pg_trigger t
 JOIN pg_catalog.pg_class c ON t.tgrelid = c.oid
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid  
@@ -21,44 +22,50 @@ WHERE t.tgconstraint = 0  AND n.nspname IN (select * from unnest(current_schemas
 ORDER BY 1,2,3
 |]
 
+data TriggerWhen = After | Before | InsteadOf deriving (Show, Eq)
+data TriggerWhat = Insert | Delete | Update deriving (Show, Eq)
+data TriggerType = TriggerType TriggerWhen [TriggerWhat] deriving (Show, Eq)
+
+mktt x = let w = if testBit x 1 then Before else if testBit x 6 then InsteadOf else After
+             t = map snd $ filter (\(b,z) -> testBit x b) $ [(2,Insert), (3,Delete), (4,Update)]
+         in TriggerType w t
 
 {- tgtype is the type (INSERT, UPDATE) 
    tgattr is which column
  -}
-data DbTrigger = DbTrigger { schema :: String, relation :: String, name :: String, enabled :: Bool,
-                             procedure :: String, acl :: [Acl] }
+data DbTrigger = DbTrigger { schema :: String, relation :: String, name :: String, triggerType :: TriggerType, enabled :: Bool,
+                             procedure :: String, definition :: String }
   deriving(Show)
-mkdbv (a:b:c:d:_) = DbView a b c (cvtacl d)
 
-instance Show (Comparison DbView) where
-    show (Equal x) = concat [sok, showView x,  treset]
-    show (LeftOnly a) = concat [azure, [charLeftArrow]," ", showView a, treset]
-    show (RightOnly a) = concat [peach, [charRightArrow], " ", showView a,  treset]
-    show (Unequal a b) = concat [nok, showView a,  treset, 
-         -- if (acl a /= acl b) then concat[ setAttr bold, "\n  acls: " , treset, map show $ dbCompare a b] else "",
-         showAclDiffs (acl a) (acl b),
+mkdbt (a:b:c:d:e:f:g:_) = DbTrigger (gs a) (gs b) (gs c) (mktt (gi d)) (gb e) (gs f) (gs g)
+
+instance Show (Comparison DbTrigger) where
+    show (Equal x) = concat [sok, showTrigger x,  treset]
+    show (LeftOnly a) = concat [azure, [charLeftArrow]," ", showTrigger a, treset]
+    show (RightOnly a) = concat [peach, [charRightArrow], " ", showTrigger a,  treset]
+    show (Unequal a b) = concat [nok, showTrigger a,  treset, 
          if (compareIgnoringWhiteSpace (definition a) (definition b)) then ""
-            else concat [setAttr bold,"\n  definition differences: \n", treset, concatMap show $ diff (lines $ definition a) (lines $ definition b)]
+            else concat [setAttr bold,"\n  definition differences: \n", treset, concatMap show $ diff (definition a) (definition b)]
          ]
 
-instance Comparable DbView where
+instance Comparable DbTrigger where
   objCmp a b =
-    if (acl a == acl b && compareIgnoringWhiteSpace (definition a) (definition b)) then Equal a
+    if (compareIgnoringWhiteSpace (definition a) (definition b)) then Equal a
     else Unequal a b
 
-compareViews (get1, get2, schemas) = do
-    aa <- get1 viewList
+compareTriggers (get1, get2) = do
+    aa <- get1 triggerList
     -- aac <- get1 viewColumns
     -- aat <- get1 viewTriggers
     -- aar <- get1 viewRules
 
-    bb <- get2 viewList
+    bb <- get2 triggerList
     -- bbc <- get2 viewColumns
     -- bbt <- get2 viewTriggers
     -- bbr <- get2 viewRules
 
-    let a = map (mkdbv . (map gs)) aa
-    let b = map (mkdbv . (map gs)) bb
+    let a = map mkdbt aa
+    let b = map mkdbt bb
 
     let cc = dbCompare a b
     let cnt = dcount iseq cc
@@ -67,10 +74,10 @@ compareViews (get1, get2, schemas) = do
     putStr $ treset
     return $ filter (not . iseq) cc
 
-showView x = (schema x) ++ "." ++ (name x) 
+showTrigger x = concat [schema x, ".", relation x, "." , name x]
 
-instance Ord DbView where
-  compare a b = let hd p = map ($ p) [schema, name] in compare (hd a) (hd b)
+instance Ord DbTrigger where
+  compare a b = let hd p = map ($ p) [schema, relation, name] in compare (hd a) (hd b)
 
-instance Eq DbView where
+instance Eq DbTrigger where
   (==) a b = EQ == compare a b

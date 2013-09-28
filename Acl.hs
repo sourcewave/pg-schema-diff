@@ -9,6 +9,7 @@ where
 
 import Util
 import Data.List
+import Debug.Trace
 
 cvtacl :: String -> [Acl]
 cvtacl x = if (null x) then [] else map toAcl ((read ("[" ++ (tail . init) x ++ "]")) :: [String])

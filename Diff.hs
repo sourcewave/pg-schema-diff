@@ -123,7 +123,8 @@ coalzip (a@(Unchanged ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : rest, z
 coalzip (a:b,z) = coalzip (b, a : z)
 coalzip ([],z) = ([],z)
 
-prettyLines start lins = concatMap (\x -> [start,' ']++x++"\n") lins
+prettyLines :: Char -> [String] -> String
+prettyLines start lins = fromString $ concatMap (\x -> fromString [start,' ']++x++fromString "\n") lins
 
 type LineNo = Int
 
