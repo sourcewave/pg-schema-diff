@@ -11,8 +11,6 @@ import Trigger
 import Util
 import Str
 
-
-
 initialize args = do
     let conns1 = head args
     let conns2 = (head . tail) args

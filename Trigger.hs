@@ -23,12 +23,14 @@ ORDER BY 1,2,3
 |]
 
 data TriggerWhen = After | Before | InsteadOf deriving (Show, Eq)
-data TriggerWhat = Insert | Delete | Update deriving (Show, Eq)
-data TriggerType = TriggerType TriggerWhen [TriggerWhat] deriving (Show, Eq)
+data TriggerWhat = Insert | Delete | Update | Truncate deriving (Show, Eq)
+data TriggerType = TriggerType TriggerWhen [TriggerWhat] TriggerHow deriving (Show, Eq) 
+data TriggerHow = ForEachRow | ForEachStatement deriving (Show, Eq)
 
 mktt x = let w = if testBit x 1 then Before else if testBit x 6 then InsteadOf else After
-             t = map snd $ filter (\(b,z) -> testBit x b) $ [(2,Insert), (3,Delete), (4,Update)]
-         in TriggerType w t
+             t = map snd $ filter (\(b,z) -> testBit x b) $ [(2,Insert), (3,Delete), (4,Update), (5,Truncate)]
+             h = if testBit x 0 then ForEachRow else ForEachStatement
+         in TriggerType w t h
 
 {- tgtype is the type (INSERT, UPDATE) 
    tgattr is which column
@@ -44,13 +46,13 @@ instance Show (Comparison DbTrigger) where
     show (LeftOnly a) = concat [azure, [charLeftArrow]," ", showTrigger a, treset]
     show (RightOnly a) = concat [peach, [charRightArrow], " ", showTrigger a,  treset]
     show (Unequal a b) = concat [nok, showTrigger a,  treset, 
-         if (compareIgnoringWhiteSpace (definition a) (definition b)) then ""
+         if compareIgnoringWhiteSpace (definition a) (definition b) then ""
             else concat [setAttr bold,"\n  definition differences: \n", treset, concatMap show $ diff (definition a) (definition b)]
          ]
 
 instance Comparable DbTrigger where
   objCmp a b =
-    if (compareIgnoringWhiteSpace (definition a) (definition b)) then Equal a
+    if compareIgnoringWhiteSpace (definition a) (definition b) then Equal a
     else Unequal a b
 
 compareTriggers (get1, get2) = do
@@ -69,9 +71,9 @@ compareTriggers (get1, get2) = do
 
     let cc = dbCompare a b
     let cnt = dcount iseq cc
-    putStr $ if (fst cnt > 0) then sok ++ (show $ fst cnt) ++ " matches, " else ""
-    putStrLn $ if (snd cnt > 0) then concat [setColor dullRed,show $ snd cnt," differences"] else concat [sok,"no differences"]
-    putStr $ treset
+    putStr $ if fst cnt > 0 then sok ++ show (fst cnt) ++ " matches, " else ""
+    putStrLn $ if snd cnt > 0 then concat [setColor dullRed,show $ snd cnt," differences"] else concat [sok,"no differences"]
+    putStr treset
     return $ filter (not . iseq) cc
 
 showTrigger x = concat [schema x, ".", relation x, "." , name x]

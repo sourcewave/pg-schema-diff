@@ -9,3 +9,4 @@ Build-Type:     Simple
 Executable pg_schema_diff
   Build-Depends:  template-haskell, HDBC-postgresql, HDBC, base, array
   Main-Is:        PgSchemaDiff.hs
+  Hs-Source-Dirs: .
