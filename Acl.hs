@@ -12,7 +12,7 @@ import Data.List
 import Debug.Trace
 
 cvtacl :: String -> [Acl]
-cvtacl x = if (null x) then [] else map toAcl ((read ("[" ++ (tail . init) x ++ "]")) :: [String])
+cvtacl x = if (null x) then [] else sort $ map toAcl ((read ("[" ++ (tail . init) x ++ "]")) :: [String])
 
 instance Comparable Acl where
   objCmp a b =

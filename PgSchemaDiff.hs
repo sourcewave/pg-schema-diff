@@ -1,15 +1,25 @@
 {-# LANGUAGE FlexibleInstances, QuasiQuotes #-}
 
-import Sqlcmds
 import Database.HDBC
 import Database.HDBC.PostgreSQL
 import System.Environment
 import Acl
 import Proc
 import View
+-- import Table
+-- import UDT
 import Trigger
 import Util
 import Str
+
+
+schemaList = [str|
+SELECT n.nspname AS "Name"
+ -- ,pg_catalog.pg_get_userbyid(n.nspowner) AS "Owner"
+FROM pg_catalog.pg_namespace n
+WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+ORDER BY 1;
+|]
 
 initialize args = do
     let conns1 = head args
@@ -46,8 +56,10 @@ main = do
      "procs" -> initialize ag >>= compareProcs >>= mapM print 
      "views" -> initialize ag >>= compareViews >>= mapM print
      "triggers" -> initialize ag >>= compareTriggers >>= mapM print
+     -- "tables" -> initialize ag >>= compareTables >>= mapM print
+     -- "types" -> initialize ag >>= compareTypes >>= mapM print
      otherwise -> mapM putStr [ [str|
-The valid comparisons are: procs, views
+The valid comparisons are: procs, views, triggers, tables, types
 
 The arguments are:
   comparisonType orangeConnectionString blueConnectionString schema1 schema2
