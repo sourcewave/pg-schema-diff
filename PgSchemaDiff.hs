@@ -6,6 +6,7 @@ import System.Environment
 import Acl
 import Proc
 import View
+-- import XferData
 -- import Table
 -- import UDT
 import Trigger
@@ -26,8 +27,8 @@ initialize args = do
     let conns2 = (head . tail) args
     let restArgs = (drop 2 args)
 
-    conn1 <- connectPostgreSQL conns1 -- "host=localhost user=r0ml dbname=storewave"
-    conn2 <- connectPostgreSQL conns2 -- "host=localhost port=5433 user=never-use dbname=storewave"
+    conn1 <- connectPostgreSQL conns1 
+    conn2 <- connectPostgreSQL conns2 
     let get1 x = quickQuery' conn1 x []
     let get2 x = quickQuery' conn2 x []
     ra <- ( if (null restArgs) then do
@@ -56,6 +57,7 @@ main = do
      "procs" -> initialize ag >>= compareProcs >>= mapM print 
      "views" -> initialize ag >>= compareViews >>= mapM print
      "triggers" -> initialize ag >>= compareTriggers >>= mapM print
+     -- "xfer" -> initialize ag >>= xferData >>= mapM print
      -- "tables" -> initialize ag >>= compareTables >>= mapM print
      -- "types" -> initialize ag >>= compareTypes >>= mapM print
      otherwise -> mapM putStr [ [str|

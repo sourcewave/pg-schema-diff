@@ -10,9 +10,41 @@ where
 import Util
 import Data.List
 import Debug.Trace
+import Text.ParserCombinators.Parsec
+
+dquote = char '"' <?> "double quote"
+quoted_char = try (do
+    char '\\'
+    r <- char '"'
+    return r
+  <?> "quoted_char" )
+                 
+qtext = many( quoted_char <|> noneOf "\"")
+quoted_string = do 
+    dquote
+    r <- qtext
+    dquote
+    return r
+  <?> "quoted string"
+
+qsts :: CharParser () String
+qsts = do
+  r <- many (quoted_string <|> many1 (noneOf ","))
+  return (concat r)
+  
+dlml :: CharParser () [String]
+dlml = sepBy qsts (char ',')
+
+glx :: String -> [String]
+glx x =
+  let z = parse dlml "" ((tail . init) x)
+  in case z of 
+     Right y -> y
+     Left y -> error (show y)
+  
 
 cvtacl :: String -> [Acl]
-cvtacl x = if (null x) then [] else sort $ map toAcl ((read ("[" ++ (tail . init) x ++ "]")) :: [String])
+cvtacl x = if (null x) then [] else sort $ map toAcl (glx x)
 
 instance Comparable Acl where
   objCmp a b =
