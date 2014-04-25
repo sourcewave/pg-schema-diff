@@ -7,6 +7,7 @@ Synopsis:       Compare two sets of Postgres schemas and show the differences
 Build-Type:     Simple
 
 Executable pg_schema_diff
-  Build-Depends:  template-haskell, HDBC-postgresql, HDBC, base, array, parsec
+  Build-Depends:  template-haskell, base, array, parsec, HDBC, HDBC-postgresql
   Main-Is:        PgSchemaDiff.hs
+  Ghc-options:    -Wall
   Hs-Source-Dirs: .

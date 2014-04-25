@@ -11,38 +11,38 @@ module Diff (
 ) where
 
 import Prelude hiding (pi)
-import Data.Array
-import Data.String
+import Data.Array ( (!), listArray)
+import Data.String (fromString)
 import Console
 import Data.List (isSuffixOf)
-import Debug.Trace
+-- import Debug.Trace
 
-data DI = F | S | B deriving (Show, Eq)
+data WhichInput = First | Second | Both deriving (Show, Eq)
 
 data SingleDiff a = SingleLeft a | SingleRight a | SingleBoth a a deriving (Show, Eq)
 data MultiDiff a = MultiLeft [a] | MultiRight [a] | MultiBoth [a] [a] deriving (Show, Eq)
 
-data DL = DL {poi :: !Int, poj :: !Int, path::[DI]} deriving (Show, Eq)
+data DL = DL {poi :: !Int, poj :: !Int, path::[WhichInput]} deriving (Show, Eq)
 
 instance Ord DL where x <= y = if poi x == poi y then  poj x > poj y else poi x <= poi y
 
 canDiag :: Eq a => (a -> a -> Bool) -> [a] -> [a] -> Int -> Int -> Int -> Int -> Bool
-canDiag eq as bs lena lenb = \ i j -> if i < lena && j < lenb then (arAs ! i) `eq` (arBs ! j) else False
+canDiag eq as bs lena lenb = \ i j -> (( i < lena && j < lenb ) && ((arAs ! i) `eq` (arBs ! j)))
     where arAs = listArray (0,lena - 1) as
           arBs = listArray (0,lenb - 1) bs
 
 dstep :: (Int -> Int -> Bool) -> [DL] -> [DL]
 dstep cd dls = f1 (head dls) : nextstep dls
-    where f1 dl = addsnake cd $ dl {poi=poi dl + 1, path=(F : path dl)}
-          f2 dl = addsnake cd $ dl {poj=poj dl + 1, path=(S : path dl)}
-          nextstep (hd:tl) = let dl2 = f2 hd in if (null tl) then [dl2] else (max dl2 (f1 $ head tl)) : nextstep tl
+    where f1 dl = addsnake cd $ dl {poi=poi dl + 1, path=First : path dl}
+          f2 dl = addsnake cd $ dl {poj=poj dl + 1, path=Second : path dl}
+          nextstep (hd:tl) = let dl2 = f2 hd in if null tl then [dl2] else max dl2 (f1 $ head tl) : nextstep tl
 
 addsnake :: (Int -> Int -> Bool) -> DL -> DL
-addsnake cd dl = if (cd pi pj) then addsnake cd $ dl {poi = pi + 1, poj = pj + 1, path=(B : path dl)} else dl
+addsnake cd dl = if cd pi pj then addsnake cd $ dl {poi = pi + 1, poj = pj + 1, path=Both : path dl} else dl
     where pi = poi dl; pj = poj dl
 
 -- | Longest Common Subsequence (and Shortest Edit Sequence )
-lcs :: Eq a => (a -> a -> Bool) -> [a] -> [a] -> [DI]
+lcs :: Eq a => (a -> a -> Bool) -> [a] -> [a] -> [WhichInput]
 lcs eq as bs = path . head . dropWhile (\dl -> poi dl /= lena || poj dl /= lenb) .
                concat . iterate (dstep cd) . (:[]) . addsnake cd $ DL {poi=0,poj=0,path=[]}
             where cd = canDiag eq as bs lena lenb
@@ -50,13 +50,13 @@ lcs eq as bs = path . head . dropWhile (\dl -> poi dl /= lena || poj dl /= lenb)
 
 getDiffBy :: (Eq a) => (a -> a -> Bool) -> [a] -> [a] -> [SingleDiff a]
 getDiffBy eq a b = markup a b . reverse $ lcs eq a b
-    where markup (x:xs)   ys (F:ds) = SingleLeft x : markup xs ys ds
-          markup   xs   (y:ys) (S:ds) = SingleRight y : markup xs ys ds
-          markup (x:xs) (y:ys) (B:ds) = SingleBoth x y : markup xs ys ds
+    where markup (x:xs)   ys (First:ds) = SingleLeft x : markup xs ys ds
+          markup   xs   (y:ys) (Second:ds) = SingleRight y : markup xs ys ds
+          markup (x:xs) (y:ys) (Both:ds) = SingleBoth x y : markup xs ys ds
           markup _ _ _ = []
 
 groupDiffs :: Eq a => [SingleDiff a] -> [MultiDiff a]
-groupDiffs ds = doit ds
+groupDiffs = doit
     where doit (SingleLeft x : xs) = MultiLeft (x:fs) : doit rest where (fs, rest) = getLefts xs
           doit (SingleRight x : xs) = MultiRight(x:fs) : doit rest where (fs, rest) = getRights xs
           doit (SingleBoth x y : xs) = MultiBoth (x:fsx) (y:fsy) : doit rest where (fsx, fsy, rest) = getBoths xs
@@ -72,7 +72,7 @@ diff :: Eq a => [a] -> [a] -> [DiffOperation a]
 diff x y = coalesce $ toDiffOp $ groupDiffs $ getDiffBy (==) x y
 
 toDiffOp :: Eq a => [MultiDiff a] -> [DiffOperation a]
-toDiffOp x = toLineRange 1 1 x
+toDiffOp = toLineRange 1 1
     where
        toLineRange _ _ []=[]
        toLineRange ls rs (MultiBoth lc rc:tail)= Unchanged ls lc rs rc : toLineRange (ls+length lc) (rs+length rc) tail
@@ -84,13 +84,13 @@ toDiffOp x = toLineRange 1 1 x
 
 coalesce x = reverse . snd $ coalzip (x,[])
 
-backspace (a, (b:c)) = (b : a, c)
+backspace (a, b:c) = (b : a, c)
 backspace (a, []) = (a,[])
 
 xchng a@(Change ls lc rs rc) =
   let rl = length rc
       ll = length lc
-  in if (isSuffixOf rc lc) then [Deletion ls (take (length lc - rl) lc) rs 
+  in if rc `isSuffixOf` lc then [Deletion ls (take (length lc - rl) lc) rs 
             , Unchanged (ls+ll-rl) (drop (ll - rl) lc) rs rc]
      else [a]
 
@@ -98,28 +98,27 @@ coalzip :: Eq a => ([DiffOperation a],[DiffOperation a])-> ([DiffOperation a],[D
 -- if I stick a "crunch" in on this Change creation, it fails to do the right thing?
 coalzip (a@(Deletion ls1 lc1 rs1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Deletion ls3 lc3 rs3) : rest, z) =
   let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs2 rc2 
-  in if (length lc2 < 3 ) then coalzip $ backspace ( ch ++ rest, z)
-  else coalzip (b : c : rest, a : z)
+  in coalzip (if length lc2 < 3 then backspace ( ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Deletion ls3 lc3 rs3) : rest, z) =
   let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs1 (rc1++rc2) 
-  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+  in coalzip (if length lc2 < 3 then backspace (ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Deletion ls1 lc1 rs1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
   let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs2 (rc2++rc3) 
-  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+  in coalzip (if length lc2 < 3 then backspace (ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
   let ch = xchng $ Change ls1 (lc1++lc2++lc3) rs1 (rc1++rc2++rc3) 
-  in if (length lc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+  in coalzip (if length lc2 < 3 then backspace (ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Addition rs1 rc1 ls1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Addition rs3 rc3 ls3) : rest, z) =
   let ch = xchng $ Change ls2 lc2 rs1 (rc1++rc2++rc3) 
-  in if (length rc2 < 3 ) then coalzip $ backspace ( ch ++ rest, z) else  coalzip (b : c : rest, a : z)
+  in coalzip (if length rc2 < 3 then backspace ( ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Change ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Addition rs3 rc3 ls3) : rest, z) =
   let ch = xchng $ Change ls1 (lc1++lc2) rs1 (rc1++rc2++rc3)
-  in if (length rc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+  in coalzip (if length rc2 < 3 then backspace (ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Addition rs1 rc1 ls1) : b@(Unchanged ls2 lc2 rs2 rc2) : c@(Change ls3 lc3 rs3 rc3) : rest, z) =
   let ch = xchng $ Change ls2 (lc2++lc3) rs1 (rc1++rc2++rc3)
-  in if (length rc2 < 3 ) then coalzip $ backspace (ch ++ rest, z) else coalzip (b : c : rest, a : z)
+  in coalzip (if length rc2 < 3 then backspace (ch ++ rest, z) else (b : c : rest, a : z))
 coalzip (a@(Unchanged ls1 lc1 rs1 rc1) : b@(Unchanged ls2 lc2 rs2 rc2) : rest, z) =
-  coalzip $ backspace $ backspace ( (Unchanged ls1 (lc1++lc2) rs1 (rc1++rc2)) : rest, z)
+  coalzip $ backspace $ backspace ( Unchanged ls1 (lc1++lc2) rs1 (rc1++rc2) : rest, z)
 coalzip (a:b,z) = coalzip (b, a : z)
 coalzip ([],z) = ([],z)
 
@@ -131,7 +130,7 @@ type LineNo = Int
 
 data LineRange = LineRange Int Int
 instance Show LineRange where
-  show (LineRange start len) = if len == 1 then (show start) else concat [show start,"," ,show (start + len - 1)]
+  show (LineRange start len) = if len == 1 then show start else concat [show start,"," ,show (start + len - 1)]
 
 -- data LineRange a = LineRange { lrNumbers :: LineNoPair, lrContents :: [a] } deriving (Show)
 
@@ -152,9 +151,12 @@ instance Show (DiffOperation String) where
 --      concat [ show (lrNumbers inLeft), "c" , show (lrNumbers inRight), "\n",
 --         prettyLines '<' (lrContents inLeft), "---\n", prettyLines '>' (lrContents inRight) ]
 
+bgColor :: Int
+bgColor = 15 
+
 instance Show (DiffOperation Char) where
-  show (Deletion ls lc rs) = concat[ peach, setExtendedBackgroundColor 15, lc, treset]
-  show (Addition rs rc ls) = concat[ azure, setExtendedBackgroundColor 15, rc, treset]
+  show (Deletion ls lc rs) = concat[ peach, setExtendedBackgroundColor bgColor, lc, treset]
+  show (Addition rs rc ls) = concat[ azure, setExtendedBackgroundColor bgColor, rc, treset]
   show (Change ls lc rs rc) =
-    concat [ setExtendedBackgroundColor 15, setColor dullBlack, "{", peach, lc, azure, rc, setColor dullBlack, "}", treset ]
-  show (Unchanged ls lc rs rc) = concat [ lc ]
+    concat [ setExtendedBackgroundColor bgColor, setColor dullBlack, "{", peach, lc, azure, rc, setColor dullBlack, "}", treset ]
+  show (Unchanged ls lc rs rc) = lc

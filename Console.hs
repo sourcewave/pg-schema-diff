@@ -2,6 +2,7 @@ module Console where
 
 import Data.List(intercalate)
 
+csi :: Show a => [a] -> String -> String
 csi args code = concat ["\ESC[" ,  intercalate ";" (map show args), code ]
 
 peach = setExtendedColor 202
