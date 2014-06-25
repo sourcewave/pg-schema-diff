@@ -1,13 +1,22 @@
 Name:           pg-schema-diff
 Version:        0.1
-Cabal-Version:  >= 1.2
+Cabal-Version:  >= 1.18
 License:        PublicDomain
 Author:         r0ml
 Synopsis:       Compare two sets of Postgres schemas and show the differences
 Build-Type:     Simple
 
 Executable pg_schema_diff
-  Build-Depends:  template-haskell, base, array, parsec, HDBC, HDBC-postgresql
+  Build-Depends:  template-haskell, base, array, parsec, binary, bytestring, network, text, cryptohash, vector
   Main-Is:        PgSchemaDiff.hs
-  Ghc-options:    -Wall
+  Ghc-options:    -Wall 
   Hs-Source-Dirs: .
+  Default-Language: Haskell2010
+
+Executable test_postgres
+  Build-Depends:  template-haskell, base, array, parsec, binary, bytestring, network, text, cryptohash, vector
+  Main-Is:        TestPostgres.hs
+  Ghc-options:    -Wall 
+  Hs-Source-Dirs: .
+  Default-Language: Haskell2010
+

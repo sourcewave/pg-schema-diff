@@ -85,6 +85,8 @@ instance Comparable DbView where
     if (acl a == acl b && compareIgnoringWhiteSpace (definition a) (definition b)) then Equal a
     else Unequal a b
 
+
+compareViews:: (String -> IO [PgResult], String -> IO [PgResult]) -> IO [Comparison DbView]
 compareViews (get1, get2, schemas) = do
     aa <- get1 viewList
     -- aac <- get1 viewColumns

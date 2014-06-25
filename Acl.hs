@@ -14,16 +14,16 @@ import Text.ParserCombinators.Parsec
 
 dquote = char '"' <?> "double quote"
 quoted_char = try (do
-    char '\\'
+    _ <- char '\\'
     r <- char '"'
     return r
   <?> "quoted_char" )
                  
 qtext = many( quoted_char <|> noneOf "\"")
 quoted_string = do 
-    dquote
+    _ <- dquote
     r <- qtext
-    dquote
+    _ <- dquote
     return r
   <?> "quoted string"
 
@@ -58,7 +58,7 @@ instance Show Acl where
 
 privName x = case x of { ('a') -> "INSERT"; ('r') -> "SELECT"; ('w')->"UPDATE"; ('d')->"DELETE"
                         ; ('D') -> "TRUNCATE"; ('x') -> "REFERENCES"; ('t') -> "TRIGGER"; ('X')->"EXECUTE"
-                        ; ('U') -> "USAGE"; ('C') -> "CREATE"; ('T')->"CREATE TEMP"; ('c')->"CONNECT"; otherwise ->"? "++[x] }
+                        ; ('U') -> "USAGE"; ('C') -> "CREATE"; ('T')->"CREATE TEMP"; ('c')->"CONNECT"; _ ->"? "++[x] }
 
 toAcl x = let  (p,q) = (break ('/'==) x)
                (a,b) = (break ('='==) p)
@@ -82,7 +82,7 @@ instance Show (Comparison Acl) where
 
 showAclDiffs a b = 
   let dc = dbCompare a b
-      ddc = filter (\l -> case l of { Equal _ -> False; otherwise -> True }) dc
+      ddc = filter (\l -> case l of { Equal _ -> False; _ -> True }) dc
   in if ( a /=  b) 
      then concat [ setAttr bold, "\n acls: ", treset, "\n  ", intercalate "\n  " $ map show ddc] 
      else ""

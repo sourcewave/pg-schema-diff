@@ -1,7 +1,6 @@
-{-# LANGUAGE FlexibleInstances, QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances, QuasiQuotes, OverloadedStrings #-}
 
-import Database.HDBC
-import Database.HDBC.PostgreSQL
+import PostgreSQL
 import System.Environment
 import Acl
 import Proc
@@ -11,8 +10,17 @@ import View
 -- import UDT
 import Trigger
 import Util
+-- import qualified MD5 
+-- import qualified Crypto.Hash.MD5 as MD5
+import MD5
+
 import Str
 
+import qualified Data.ByteString as B
+import qualified Data.Text.Encoding as T
+import qualified Data.Text as T
+
+import Debug.Trace
 
 schemaList = [str|
 SELECT n.nspname AS "Name"
@@ -27,18 +35,52 @@ initialize args = do
     let conns2 = (head . tail) args
     let restArgs = (drop 2 args)
 
-    conn1 <- connectPostgreSQL conns1 
-    conn2 <- connectPostgreSQL conns2 
-    let get1 x = quickQuery' conn1 x []
-    let get2 x = quickQuery' conn2 x []
+    conn1 <- connectTo conns1 5432
+    conn2 <- connectTo conns2 5432
+
+    let username = "xxx"
+    let password = "yyy" 
+    let database = "zzz"
+
+    [Authentication au1 au1x] <- doQuery conn1 (StartUpMessage [("user", username),("database",database)])
+    traceShow (au1,au1x) $ return ()
+
+    [Authentication au2 au2x] <- doQuery conn2 (StartUpMessage [("user", username),("database",database)])
+    traceShow (au2,au2x) $ return ()
+
+    if au1 == 5 then do
+      j <- doQuery conn1 (Password password username au1x)
+      print j
+    else if au1 == 3 then do
+      j <- doQuery conn1 (Password password undefined undefined)
+      print j
+    else do
+      j <- undefined
+      print (j :: String)
+
+
+
+    if au2 == 5 then do
+      j <- doQuery conn2 (Password password username au2x)
+      print j
+    else if au2 == 3 then do
+      j <- doQuery conn2 (Password password undefined undefined)
+      print j
+    else do
+      j <- undefined
+      print (j :: String)
+
+
+    let get1 x = doQuery conn1 (Query x)
+    let get2 x = doQuery conn2 (Query x)
     ra <- ( if (null restArgs) then do
                 sn1 <- get1 schemaList
-                return $ (map (gs . head) sn1)
+                return $ (map (gs . head) [sn1])
             else do return restArgs)
 
     let searchPath = "set search_path="++ (intercalate "," ra)
-    run conn1 searchPath []
-    run conn2 searchPath []
+    get1 searchPath
+    get2 searchPath
     return (get1, get2)
 
 {- The command line arguments are:
@@ -55,8 +97,8 @@ main = do
 
   case which of
      "procs" -> initialize ag >>= compareProcs >>= mapM print 
-     "views" -> initialize ag >>= compareViews >>= mapM print
-     "triggers" -> initialize ag >>= compareTriggers >>= mapM print
+--     "views" -> initialize ag >>= compareViews >>= mapM print
+--     "triggers" -> initialize ag >>= compareTriggers >>= mapM print
      -- "xfer" -> initialize ag >>= xferData >>= mapM print
      -- "tables" -> initialize ag >>= compareTables >>= mapM print
      -- "types" -> initialize ag >>= compareTypes >>= mapM print

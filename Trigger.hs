@@ -2,9 +2,9 @@
 
 module Trigger where
 
+import PostgreSQL
 import Str(str)
 import Util
-import Console
 import Diff
 import Data.Bits
 import Debug.Trace
@@ -55,6 +55,8 @@ instance Comparable DbTrigger where
     if compareIgnoringWhiteSpace (definition a) (definition b) then Equal a
     else Unequal a b
 
+
+compareTriggers :: (String -> IO [[PgResult]], String -> IO [[PgResult]]) -> IO [Comparison DbTrigger]
 compareTriggers (get1, get2) = do
     aa <- get1 triggerList
     -- aac <- get1 viewColumns

@@ -5,11 +5,11 @@ module View where
 import Str(str)
 import Acl
 import Util
-import Console
 import Diff
 
 	-- LEFT JOIN pg_catalog.pg_class dc ON (d.classoid=dc.oid AND dc.relname='pg_class')
 	-- LEFT JOIN pg_catalog.pg_namespace dn ON (dn.oid=dc.relnamespace AND dn.nspname='pg_catalog')
+viewList :: String
 viewList = [str| 
 SELECT n.nspname AS "Schema", c.relname AS "Name", -- d.description AS "Comment",
   pg_get_viewdef(c.oid) AS definition,
@@ -106,6 +106,7 @@ compareViews (get1, get2) = do
     putStr $ treset
     return $ filter (not . iseq) cc
 
+showView :: DbView -> String
 showView x = (schema x) ++ "." ++ (name x) 
 
 instance Ord DbView where

@@ -2,12 +2,13 @@
 
 module Proc where
 
+import PostgreSQL
 import Str(str)
 import Acl
 import Util
-import Console
 import Diff
 
+functionList :: String
 functionList = [str|
 SELECT n.nspname as "Schema",
   p.proname as "Name",
@@ -31,8 +32,11 @@ ORDER BY 1, 2, 3;
 
 data DbProc = DbProc { schema :: String, name :: String, argTypes :: String, resType :: String, ptype :: String,
                        source :: String, acl :: [Acl] } deriving(Show, Eq)
+
+mkdbp :: [String] -> DbProc
 mkdbp (a:b:c:d:e:f:g:_) = DbProc a b c d e f (cvtacl g)
 
+showProc :: DbProc -> String
 showProc x = (schema x) ++ "." ++ (name x) ++ "(" ++ (argTypes x) ++ ")"
 
 instance Show (Comparison DbProc) where
@@ -50,13 +54,14 @@ instance Comparable DbProc where
   objCmp a b = 
     if (resType a == resType b && acl a == acl b && compareIgnoringWhiteSpace (source a) (source b)) then Equal a
     else Unequal a b
-  
+
+compareProcs :: (String -> IO [PgResult], String -> IO [PgResult]) -> IO [Comparison DbProc]
 compareProcs (get1, get2) = do
     aa <- get1 functionList
-    let a = map (mkdbp . (map gs)) aa
+    let a = map (mkdbp . (map gs)) [aa]
 
     bb <- get2 functionList
-    let b = map (mkdbp . (map gs)) bb
+    let b = map (mkdbp . (map gs)) [bb]
 
     let cc = dbCompare a b
 
