@@ -12,24 +12,9 @@ import qualified Data.Text as T
 import Debug.Trace
 
 main = do
-    (host : port : db : username : password : args) <- getArgs
+    (cs : args) <- getArgs
  
-    conn <- connectTo host (read port :: Int)
-
-
-    [Authentication au1 au1x] <- doQuery conn (StartUpMessage [("user", username),("database",db)])
-    traceShow (au1,au1x) $ return ()
-
-    if au1 == 5 then do
-      j <- doQuery conn (Password password username au1x)
-      print j
-    else if au1 == 3 then do
-      j <- doQuery conn (Password password undefined undefined)
-      print j
-    else do
-      j <- undefined
-      print (j :: String)
-
+    conn <- connectToDb cs
 
     let get1 x = doQuery conn (Query x)
 

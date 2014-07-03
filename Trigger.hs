@@ -7,6 +7,8 @@ import Str(str)
 import Util
 import Diff
 import Data.Bits
+import Data.ByteString (ByteString)
+import Data.Maybe
 import Debug.Trace
 
 triggerList = [str|
@@ -39,7 +41,16 @@ data DbTrigger = DbTrigger { schema :: String, relation :: String, name :: Strin
                              procedure :: String, definition :: String }
   deriving(Show)
 
-mkdbt (a:b:c:d:e:f:g:_) = DbTrigger (gs a) (gs b) (gs c) (mktt (gi d)) (gb e) (gs f) (gs g)
+mkdbt :: [FieldValue] -> DbTrigger
+mkdbt (s : r : n : t : e : p : src : _ ) = DbTrigger {
+  schema = stringField s,
+  relation = stringField r,
+  name = stringField n,
+  triggerType = mktt (intField t),
+  enabled = boolField e,
+  procedure = stringField p,
+  definition = stringField src
+}
 
 instance Show (Comparison DbTrigger) where
     show (Equal x) = concat [sok, showTrigger x,  treset]
@@ -56,20 +67,23 @@ instance Comparable DbTrigger where
     else Unequal a b
 
 
-compareTriggers :: (String -> IO [[PgResult]], String -> IO [[PgResult]]) -> IO [Comparison DbTrigger]
+compareTriggers :: (String -> IO PgResult, String -> IO PgResult) -> IO [Comparison DbTrigger]
 compareTriggers (get1, get2) = do
     aa <- get1 triggerList
+    let (ResultSet _ aa1 _) = aa
+    print aa
     -- aac <- get1 viewColumns
     -- aat <- get1 viewTriggers
     -- aar <- get1 viewRules
 
     bb <- get2 triggerList
+    let (ResultSet _ bb1 _) = bb
     -- bbc <- get2 viewColumns
     -- bbt <- get2 viewTriggers
     -- bbr <- get2 viewRules
 
-    let a = map mkdbt aa
-    let b = map mkdbt bb
+    let a = map mkdbt aa1
+    let b = map mkdbt bb1
 
     let cc = dbCompare a b
     let cnt = dcount iseq cc

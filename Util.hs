@@ -13,13 +13,13 @@ import Console
 import Data.List (intercalate)
 import Data.Char (isSpace)
 
-gs :: PgMessage -> String
+gs :: PgResult -> String
 gs = undefined
 
-gi :: PgMessage -> Int
+gi :: PgResult -> Int
 gi = undefined
 
-gb :: PgMessage -> Bool
+gb :: PgResult -> Bool
 gb = undefined
 
 

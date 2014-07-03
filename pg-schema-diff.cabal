@@ -7,14 +7,14 @@ Synopsis:       Compare two sets of Postgres schemas and show the differences
 Build-Type:     Simple
 
 Executable pg_schema_diff
-  Build-Depends:  template-haskell, base, array, parsec, binary, bytestring, network, text, cryptohash, vector
+  Build-Depends:  template-haskell, postgrehs, base, array, bytestring, text, parsec
   Main-Is:        PgSchemaDiff.hs
   Ghc-options:    -Wall 
   Hs-Source-Dirs: .
   Default-Language: Haskell2010
 
 Executable test_postgres
-  Build-Depends:  template-haskell, base, array, parsec, binary, bytestring, network, text, cryptohash, vector
+  Build-Depends:  template-haskell, base, array, bytestring, text, postgrehs
   Main-Is:        TestPostgres.hs
   Ghc-options:    -Wall 
   Hs-Source-Dirs: .
